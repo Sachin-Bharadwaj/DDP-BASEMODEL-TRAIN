@@ -25,6 +25,8 @@ from torch.distributed.optim import ZeroRedundancyOptimizer
 from data.data_common import write_tokenizer
 
 
+
+
 """
 This script implements vanilla transformer model which uses
 fixed positional encoding and causal multi-head attention.
@@ -347,10 +349,10 @@ if __name__ == "__main__":
     B, T = args.batch_size, args.sequence_length
     assert 1 <= T <= 1024
     assert args.dtype in {"float32", "float16", "bfloat16"}
-    assert args.dtype in  {"gpt2"}
+    assert args.model in  {"gpt2"}
 
     # set up DDP, torchrun set this variable
-    ddp = int(os.environ.get("RANK"), -1) != -1 # whether its a DDP run or not
+    ddp = int(os.environ.get("RANK", -1)) != -1 # whether its a DDP run or not
     if ddp:
         # use of ddp needs CUDA at the moment, we set the rank and local rank
         assert torch.cuda.is_available(), "for now I think DDP needs CUDA"
