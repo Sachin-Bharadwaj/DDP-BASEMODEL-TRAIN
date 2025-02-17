@@ -1,2 +1,5 @@
 # for 2 GPU on a single node (single machine)
-torchrun --standalone --nproc_per_node=2 model/GPT2.py --num_iterations=50 --sequence_length=1024 --compile=1 --tensorcores=1 --dtype=bfloat16 --flash=1 --input_train_bin="data/tinyshakespare/*_train.bin"  --input_val_bin="data/tinyshakespare/*_val.bin" --output_dir="./outdir"
+torchrun --standalone --nproc_per_node=2 model/GPT2.py --num_iterations=200 --sequence_length=1024 --batch_size=16 --total_batch_size=65536  --compile=1 --tensorcores=1 --dtype=bfloat16 --flash=1 --input_train_bin="data/tinyshakespare/*_train.bin"  --output_dir="./outdir"
+
+# for 2 GPU on a single node (single machine) , to load from checkpoint
+torchrun --standalone --nproc_per_node=2 model/GPT2.py --num_iterations=200 --sequence_length=1024 --batch_size=16 --total_batch_size=65536  --compile=1 --tensorcores=1 --dtype=bfloat16 --flash=1 --input_train_bin="data/tinyshakespare/*_train.bin"  --output_dir="./outdir" --load_chkpoint_file="./outdir/chkpoint_100.pth"

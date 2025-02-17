@@ -320,6 +320,7 @@ if __name__ == "__main__":
     parser.add_argument("--total_batch_size", type=int, default=256, help="total desired batch size, in units of #tokens") # total_batch_size across all GPUs across all machines ( this will be used in calculating the gradient accumuation steps)
     # workload (number of steps)
     parser.add_argument("--num_iterations", type=int, default=10, help="number of iterations to run")
+    parser.add_argument("--inference_only", type=int, default=0, help="only run inference")
     # optimization
     parser.add_argument("--learning_rate", type=float, default=1e-4, help="learning rate")
     parser.add_argument("--warmup_iters", type=int, default=0, help="learning rate warmp up iterations")
@@ -444,25 +445,26 @@ if __name__ == "__main__":
     # ------ Main training loop ----------------------
     if ddp:
         # wrap the model in DDP
-        model = DDP(model, device_ids=[ddp_local_rank])
+        model = DDP(model, device_ids=[ddp_local_rank], find_unused_parameters=True)
     raw_model = model.module if ddp else model # contains the "raw" unwrapped model
 
     ## init optimizer
     optimizer = raw_model.configure_optimizers(weight_decay=args.weight_decay, 
                                                 learning_rate=args.learning_rate, 
                                                 betas = (0.9, 0.95),
-                                                device_type = device, 
+                                                device_type = device_type, 
                                                 zero_stage = zero_stage)
 
     ## load the checkpoint if enabled
     if args.load_chkpoint_file:
         chkpoint_file = args.load_chkpoint_file
-        print(f"loading checkpoint from file: {chkpoint_file}")
+        print0(f"loading checkpoint from file: {chkpoint_file}")
         state = torch.load(chkpoint_file)
         raw_model.load_state_dict(state['model_state_dict'])
         optimizer.load_state_dict(state['optimizer_state_dict'])
         global_iter = state['n_iter']
-        start_iter = global_iter - 1 # -1 coz we save at the start of training iteration even before it training for that iter is completed
+        start_iter = global_iter  
+        print0(f"start_iter: {start_iter}/{args.num_iterations}")
     else:
         start_iter = 0
     
@@ -486,7 +488,7 @@ if __name__ == "__main__":
 
         # save the model and optimizer
         if (last_step or (step > 0  and (step % args.save_every_niter) == 0)) and master_process:
-            model_filename = os.path.join(args.output_dir,"chkpoint") + f"_{step}.pt"
+            model_filename = os.path.join(args.output_dir,"chkpoint") + f"_{step}.pth"
             # save the model and optimizer
             torch.save({
                 'n_iter': step,
@@ -494,6 +496,7 @@ if __name__ == "__main__":
                 'optimizer_state_dict': optimizer.state_dict(),
                 # 'wandb_run_id: None
             }, model_filename)
+            print0(f"chkpoint saved at iter: {step}")
 
 
         # once in a while evaluate the validation dataset
@@ -565,6 +568,7 @@ if __name__ == "__main__":
                 loss.backward() # NOTE: we are not using lossf but loss.backward()
         # we need to all reduce the lossf so that all GPUs have same average value accumulated over the micro-batches across all GPUs
         if ddp:
+            lossf = torch.tensor(lossf, requires_grad=False).to(x.device)
             # Remember: all_reduce is getting value from all GPUs and then averaging based on op set below and then broadcasting it back to all GPUs
             dist.all_reduce(lossf, op=dist.ReduceOp.AVG)
         lossf = lossf.item() # for logging purposes
