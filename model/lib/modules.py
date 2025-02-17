@@ -108,6 +108,7 @@ class CausalMultiHeadAttention(nn.Module):
                                                                            attn_mask=None, 
                                                                            dropout_p=self.dropout_val, 
                                                                            is_causal=True)
+            attn_weights = None # To be fixed, currently the scaled_dot_product_attention does not return attn weights
         else:
 
             # compute attn_scores

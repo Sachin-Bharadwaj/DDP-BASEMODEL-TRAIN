@@ -41,13 +41,13 @@ def write_tokenizer(enc, filename):
     header[2] = n # number of tokens
     header[3] = enc.eot_token # EOT token
 
-    with open(filename, "rb") as f:
+    with open(filename, "wb") as f:
         # write header to the file
         f.write(header.tobytes())
         for i in range(n):
             b = enc.decode_bytes([i])
             length = len(b)
-            assert b < 256, f"Token length exceeds 255: {length}"
+            assert length < 256, f"Token length exceeds 255: {length}"
             f.write(struct.pack('>B', length)) # # Write the length as a 1-byte unsigned integer
             f.write(b) # Write the actual bytes
     

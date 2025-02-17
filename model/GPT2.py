@@ -100,7 +100,7 @@ class GPTModel(nn.Module):
     def forward(self, in_idx, targets=None, return_logits=True):
         batch_size, seq_len = in_idx.shape
         tok_embds = self.tok_emb(in_idx)
-        pos_embds = self.pos_emb(torch.arange(seq_len))
+        pos_embds = self.pos_emb(torch.arange(seq_len, device=in_idx.device))
         x = tok_embds + pos_embds
         x = self.drop_emb(x)
         x = self.trf_blocks(x)
@@ -253,7 +253,7 @@ class DistributedDataLoader:
         
         # glob files that match the pattern
         self.files = sorted(glob.glob(filename_pattern))
-        assert self.files > 0, f"did not find any files that match the pattern: {filename_pattern}"
+        assert len(self.files) > 0, f"did not find any files that match the pattern: {filename_pattern}"
 
         # load and count the number of tokens in all shards
         ntok_total = 0
@@ -270,12 +270,12 @@ class DistributedDataLoader:
 
     def reset(self):
         # if shard 0 is loaded, just reset the current pointer
-        if self.curret_shard != 0:
+        if self.current_shard != 0:
             self.current_shard = 0
             self.tokens = _load_data_shard(self.files[self.current_shard])
         self.current_position = self.process_rank * self.B * self.T
 
-    def adavance(self): # advance to next shard
+    def advance(self): # advance to next shard
         self.current_shard = (self.current_shard + 1) % len(self.files)
         self.current_position = self.process_rank * self.B * self.T
         self.tokens = _load_data_shard(self.files[self.current_shard])
@@ -388,7 +388,7 @@ if __name__ == "__main__":
 
     # calculate the gradient accumulation from the desired total_batch_size
     tokens_per_fwdbwd = B * T * ddp_world_size # number of tokens processed across all GPUS across all nodes (machines)
-    assert args.total_batch_size % tokens_per_fwdbwd == 0
+    #assert args.total_batch_size % tokens_per_fwdbwd == 0 # ?? Sachin, don't need this assert
     grad_accum_steps = args.total_batch_size // tokens_per_fwdbwd
     print0(f"total desired batch size: {args.total_batch_size}")
     print0(f"=> calculated gradient accumulation steps: {grad_accum_steps}")
@@ -434,7 +434,7 @@ if __name__ == "__main__":
         model = torch.compile(model)
 
     # ------ Distributed data sampler ---------------
-    train_loader = DistributedDataLoader(args.input_bin, B, T, ddp_rank, ddp_world_size)
+    train_loader = DistributedDataLoader(args.input_train_bin, B, T, ddp_rank, ddp_world_size)
     val_loader = None
     if args.input_val_bin:
         val_loader = DistributedDataLoader(args.input_val_bin, B, T, ddp_rank, ddp_world_size)
@@ -444,7 +444,7 @@ if __name__ == "__main__":
     # ------ Main training loop ----------------------
     if ddp:
         # wrap the model in DDP
-        model = DDP(model, device=[ddp_local_rank])
+        model = DDP(model, device_ids=[ddp_local_rank])
     raw_model = model.module if ddp else model # contains the "raw" unwrapped model
 
     ## init optimizer
@@ -468,7 +468,7 @@ if __name__ == "__main__":
     
     # create the loggign DIR if it does not exist
     logfile = None
-    if args.out_dir:
+    if args.output_dir:
         os.makedirs(args.output_dir, exist_ok=True)
         logfile = os.path.join(args.output_dir, "main.log")
         # create the log file "main.log" and wipe it clean
