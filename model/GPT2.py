@@ -4,6 +4,7 @@ from dataclasses import asdict
 import numpy as np
 import glob
 import math
+import wandb
 
 from lib.modules import LayerNorm, GELU, FeedForward, CausalMultiHeadAttention, RMSNorm
 import os, sys
@@ -344,6 +345,7 @@ if __name__ == "__main__":
     # python -> disk
     parser.add_argument("--write_tensors", type=int, default=1, help="write tensors to disk")
     parser.add_argument("--save_every_niter", type=int, default=100, help="how many iterations to save the model")
+    parser.add_argument("--wandb_log_iters", type=int, default=10, help="how many iteration should wandb log train loss")
     args = parser.parse_args()
 
     # args validation
@@ -463,10 +465,33 @@ if __name__ == "__main__":
         raw_model.load_state_dict(state['model_state_dict'])
         optimizer.load_state_dict(state['optimizer_state_dict'])
         global_iter = state['n_iter']
+        wandb_run_id = state['wandb_run_id']
+        lossf = state['train_loss']
+        val_loss = state['val_loss']
         start_iter = global_iter  
         print0(f"start_iter: {start_iter}/{args.num_iterations}")
     else:
         start_iter = 0
+        wandb_run_id = None
+
+    # initialize wandb
+    if master_process:
+        wandb.init(
+            # set the wandb project where this run will be logged
+            project = "pytorch-gpt2-ddp",
+            # allow resuming existing run with the same name (in case the rank 0 node crashed)
+            name=f"global_rank_{ddp_rank}",
+            id=wandb_run_id,
+            resume="allow",
+            config=vars(args) # args is a Namespace of argparse.Namespace, you can access the dict in namespace by wrapping it in vars(namespace)
+        )
+    
+    if master_process:
+        # define our custom x axis metric
+        wandb.define_metric("global_step")
+        # define which metrics will be plotted against it
+        wandb.define_metric("validation/*", step_metric="global_step")
+        wandb.define_metric("train/*", step_metric="global_step")
     
     # create the loggign DIR if it does not exist
     logfile = None
@@ -482,6 +507,7 @@ if __name__ == "__main__":
     
     timings = []
     norm = -1.0 # dummy value to print in inference-only mode
+    val_loss = None
     for step in range(start_iter, args.num_iterations + 1):
         t0 = time.time()
         last_step = (step == args.num_iterations)
@@ -494,7 +520,10 @@ if __name__ == "__main__":
                 'n_iter': step,
                 'model_state_dict': raw_model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
-                # 'wandb_run_id: None
+                'wandb_run_id': wandb.run.id,
+                # saving the train and val loss which will be used if we resume from a checkpoint
+                'train_loss': lossf,
+                'val_loss': val_loss
             }, model_filename)
             print0(f"chkpoint saved at iter: {step}")
 
@@ -518,6 +547,9 @@ if __name__ == "__main__":
                 if master_process and logfile is not None:
                     with open(logfile, "a") as f:
                         f.write("s:%d vloss:%f\n" % (step, val_loss))
+                # log to wandb
+                if master_process:
+                    wandb.log({'val/val_loss': val_loss, 'global_step': step-1})
 
         # once in a while perform model inference on the master process
         if args.sample_every > 0 and ((step % args.sample_every) == 0 or last_step) and master_process:
@@ -532,6 +564,11 @@ if __name__ == "__main__":
             print0("---------------------------------")
             print0(enc.decode(yg[0].tolist()))
             print0("---------------------------------")
+
+        # log train loss on wandb
+        if master_process and (step > 0 and (step % args.wandb_log_iters) == 0):
+            wandb.log({'train/train_loss': lossf, 'global_step': step-1})
+            
 
         # NOTE: we want to run the eval and inference at 0th iteration and iteration = num_iteration, so we break here
         if last_step:
@@ -614,10 +651,6 @@ if __name__ == "__main__":
         destroy_process_group()
 
 
-# init model parameters (Done)
-# save the checkpoints (Done)
-# prepare the training data for overfitting (maybe some small text book) (Done)
-# add wandb support (TBD)
 
     
 
