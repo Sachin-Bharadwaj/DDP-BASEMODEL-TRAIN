@@ -146,7 +146,7 @@ class GPTModel(nn.Module):
         if zero_stage == 1: # use sharding of optimizer states
             print0("using ZeroRedundancyOptimizer")
             optimizer = ZeroRedundancyOptimizer(**optim_groups[0],
-                                                optimizer_class = torch.Optim.AdamW,
+                                                optimizer_class = torch.optim.AdamW,
                                                 lr=learning_rate,
                                                 betas=betas,
                                                 fused=use_fused)
@@ -163,9 +163,10 @@ class GPTModel(nn.Module):
         the sequence max_new_tokens times, feeding the predictions back into the model each time.
         Most likely you'll want to make sure to be in model.eval() mode of operation for this.
         """
+        idx = start_token_idx
         for _ in range(max_new_tokens):
             # if the sequence context is growing too long we must crop it at max_seq_length
-            idx_cond = idx if idx.size(1) <= self.cfg.context_length else idx[:, -self.cfg.context_length]
+            idx_cond = idx if idx.size(1) <= self.cfg["context_length"] else idx[:, -self.cfg["context_length"]]
             # make forward pass
             logits, _ = self(idx_cond)
             # pluck the logit at the final step and scale by the desired temperature
@@ -197,7 +198,7 @@ def get_lr(it, args):
     min_lr = args.learning_rate * args.learning_rate_decay_frac
     #1: linear warmup for warmup_iters_steps
     if it < args.warmup_iters:
-        return args.learning_rate * (it+1) / args.warmpup_iters
+        return args.learning_rate * (it+1) / args.warmup_iters
 
     #2: if it > args.num_iterations, return min learning rate
     if it > args.num_iterations:
@@ -254,10 +255,11 @@ class DistributedDataLoader:
         
         # glob files that match the pattern
         self.files = sorted(glob.glob(filename_pattern))
+        print0(self.files)
         assert len(self.files) > 0, f"did not find any files that match the pattern: {filename_pattern}"
 
         # load and count the number of tokens in all shards
-        ntok_total = 0
+        ntok_total = 0.0
         for file in self.files:
             shard_ntok = _peak_data_shard(file)
             assert shard_ntok >= self.num_processes * B * T + 1 # Sachin: ensuring that each .bin file has atleast one batch equivalent tokens for all GPUs (+1 for target generation)
@@ -346,6 +348,7 @@ if __name__ == "__main__":
     parser.add_argument("--write_tensors", type=int, default=1, help="write tensors to disk")
     parser.add_argument("--save_every_niter", type=int, default=100, help="how many iterations to save the model")
     parser.add_argument("--wandb_log_iters", type=int, default=10, help="how many iteration should wandb log train loss")
+    parser.add_argument("--wandb_project_id", type=str, default="", help="project id for weight and baises")
     args = parser.parse_args()
 
     # args validation
@@ -421,6 +424,7 @@ if __name__ == "__main__":
 
     # initialize the model with its associated cfg
     gptcfg = asdict(GPT2Config())
+    gptcfg["context_length"] = args.sequence_length
     model = GPTModel(gptcfg)
     print0(f"number of parameters: {sum(p.numel() for p in model.parameters())}")
 
@@ -478,7 +482,7 @@ if __name__ == "__main__":
     if master_process:
         wandb.init(
             # set the wandb project where this run will be logged
-            project = "pytorch-gpt2-ddp",
+            project = args.wandb_project_id, #"pytorch-gpt2-ddp",
             # allow resuming existing run with the same name (in case the rank 0 node crashed)
             name=f"global_rank_{ddp_rank}",
             id=wandb_run_id,
@@ -516,6 +520,8 @@ if __name__ == "__main__":
         if (last_step or (step > 0  and (step % args.save_every_niter) == 0)) and master_process:
             model_filename = os.path.join(args.output_dir,"chkpoint") + f"_{step}.pth"
             # save the model and optimizer
+            if args.zero_stage > 0:
+                optimizer.consolidate_state_dict() # required in sharded optimizer settings
             torch.save({
                 'n_iter': step,
                 'model_state_dict': raw_model.state_dict(),
