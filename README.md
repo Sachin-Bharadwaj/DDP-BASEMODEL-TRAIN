@@ -33,12 +33,24 @@ Here is the training loss and val loss on 10BT fineweb-edu dataset.
 Further, I also evaluated the trained model on hellaswag completion (val split) and the model accuracy is ~30%.
 
 As, you can see from above, the loss roughly settles to ~3.2. Here are some examples completions from the model.
-If I prompt it with prefill text as "As I went to the Mars, " and asked it to generate 128 tokens , it replies as follows: <br> 
----------------------------------
-As I went to the Mars, urn-like, I discovered three different forms of plant life.
-The first one is plant DNA: “a plant gene”, and this one is more of an “invention” than it does a plant with “a gene”. This is the first of what are known as DNA-based cloning (i.e., cloning in plant cells) and what these are called DNA-based cloning.
-The second one is plant genetic markers. This method is more precise than DNA cloning, though, since it requires very high levels of equipment, as it costs very to separate and purify small batches
----------------------------------
+If I prompt it with prefill text as "As I went to the Mars, I saw" and asked it to generate 256 tokens , it replies as follows: <br> 
+
+<|endoftext|> As I went to Mars, I saw a red plaque in a place on the right of the Moon symbolizing the redness and warmth the moon has created.
+On the right, in the center, is a small object, similar to the moon.
+You can see that these are reds.
+When I first saw them (below), this is an idea I didn’t understand, but if you take a look at the title of this post, you’ll notice they are really very beautiful.
+You see they just sit there.
+There’s a red dot above it.
+So, what does the red dot in the area representing its red colour mean? It’s the same as the red dot in the space above it if you look at the red dot itself.
+This is where the Red dot in the sky is located.
+Now, this is where the Moon is located.
+And now we learned how to see the red dot in this detail above.
+What do you think is the real reason why the red dots are so important?
+First, it’s very important.
+First, they’re actually made up of white noise.
+This noise can be caused by things like solar activity or volcanic activity.
+And the
+
 
 It looks like, we need to increase the training corpus. The next step is to increase the training dataset to 100BT and train the base model again.
 
