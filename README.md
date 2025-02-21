@@ -30,6 +30,8 @@ Here is the training loss and val loss on 10BT fineweb-edu dataset.
 
 <img width="648" alt="Screenshot 2025-02-21 at 11 46 46 AM" src="https://github.com/user-attachments/assets/c6b4438c-eaa9-4343-8aea-6656391404b0" />
 
+Further, I also evaluated the trained model on hellaswag completion (val split) and the model accuracy is ~30%.
+
 As, you can see from above, the loss roughly settles to ~3.2. Here are some examples completions from the model.
 If I prompt it with prefill text as "As I went to the Mars, " and asked it to generate 128 tokens , it replies as follows: <br> 
 ---------------------------------
@@ -37,6 +39,8 @@ As I went to the Mars, urn-like, I discovered three different forms of plant lif
 The first one is plant DNA: “a plant gene”, and this one is more of an “invention” than it does a plant with “a gene”. This is the first of what are known as DNA-based cloning (i.e., cloning in plant cells) and what these are called DNA-based cloning.
 The second one is plant genetic markers. This method is more precise than DNA cloning, though, since it requires very high levels of equipment, as it costs very to separate and purify small batches
 ---------------------------------
+
+It looks like, we need to increase the training corpus. The next step is to increase the training dataset to 100BT and train the base model again.
 
 
 
