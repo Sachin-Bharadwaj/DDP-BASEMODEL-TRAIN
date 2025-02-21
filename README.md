@@ -21,6 +21,14 @@ torchrun --standalone --nproc_per_node=2 model/GPT2.py --num_iterations=38146 --
 
 Now, wait for 8 hours for the training to finish (if you are using 2xA100-40GB). **NOTE** --zero_stage=0 , do not change it from anything else than 0 because for some reason I was unable to make the sync the sharded optimizer states if you set it to 1. The checkpoint is saved in the path provided above by --output_dir.
 Let me explain some of the flags in the above command <br>
-our batch_size on single GPU (--batch_size=16), lets say we want to have virtual batch_size of 16*8, so we need to have 8 as gradient accumulation steps. Therefore, total_virtual_batch_size (including all GPUs) = gradient_acc_steps * batch_size * sequence_length * num_gpus (tokens) which in our case turns out to be 262144. Therefore, set --total_batch_size=262144 (tokens). Now our total training tokens=10BT, therefore --num_iteartions = 10B/262144 = 38146. --compile flags compiles the model to make it faster, I am training the model in bfloat16  using --dtype=bfloat16. Attention computation is accelerated using flash attention by setting --flash=1. We use AdamW optimizer with a cosine scheduling which has an initial warm up and then it decays according to cosine schedule. During warm up , lr increase from 0 to --learning_rate for --warmup_iters and then decays accroding to cosine scheduler to a learning rate governed by lr* -- learning_rate_decay_frac 
+our batch_size on single GPU (--batch_size=16), lets say we want to have virtual batch_size of 16*8, so we need to have 8 as gradient accumulation steps. Therefore, total_virtual_batch_size (including all GPUs) = gradient_acc_steps * batch_size * sequence_length * num_gpus (tokens) which in our case turns out to be 262144. Therefore, set --total_batch_size=262144 (tokens). Now our total training tokens=10BT, therefore --num_iteartions = 10B/262144 = 38146. --compile flags compiles the model to make it faster, I am training the model in bfloat16  using --dtype=bfloat16. Attention computation is accelerated using flash attention by setting --flash=1. We use AdamW optimizer with a cosine scheduling which has an initial warm up and then it decays according to cosine schedule. During warm up , lr increase from 0 to --learning_rate for --warmup_iters and then decays accroding to cosine scheduler to a learning rate governed by lr* -- learning_rate_decay_frac. The rest of the command line parameters are self-explainatory.
+<br>
+<br>
+
+Here is the training loss and val loss on 10BT fineweb-edu dataset.
+<img width="628" alt="Screenshot 2025-02-21 at 11 46 12 AM" src="https://github.com/user-attachments/assets/4231920a-3cd2-4e78-a942-6b8a6ac2cf0e" />
+
+<img width="648" alt="Screenshot 2025-02-21 at 11 46 46 AM" src="https://github.com/user-attachments/assets/c6b4438c-eaa9-4343-8aea-6656391404b0" />
+
 
 
