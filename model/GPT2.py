@@ -6,7 +6,7 @@ import glob
 import math
 import wandb
 
-from lib.modules import LayerNorm, GELU, FeedForward, CausalMultiHeadAttention, RMSNorm
+
 import os, sys
 import inspect
 
@@ -14,7 +14,7 @@ import inspect
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
 
-
+from model.lib.modules import FeedForward, CausalMultiHeadAttention, RMSNorm
 import torch.nn.functional as F
 from config.cfg import GPT2Config
 from contextlib import nullcontext
@@ -24,8 +24,6 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed.optim import ZeroRedundancyOptimizer
 
 from data.data_common import write_tokenizer
-
-
 
 
 """
@@ -99,6 +97,9 @@ class GPTModel(nn.Module):
             torch.nn.init.normal_(module.weight, mean=0, std=0.02, generator=self.init_rng)
 
     def forward(self, in_idx, targets=None, return_logits=True):
+        '''
+        if targets=-1, then loss is not computed but all logits for all elements in seq are returned
+        '''
         batch_size, seq_len = in_idx.shape
         tok_embds = self.tok_emb(in_idx)
         pos_embds = self.pos_emb(torch.arange(seq_len, device=in_idx.device))
@@ -110,11 +111,15 @@ class GPTModel(nn.Module):
         # check if it is in train mode or inference mode
         if targets is not None:
             logits = self.out_head(x)
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
-        else:
+            if targets != -1:
+                loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
+            else:
+                loss = None
+        elif return_logits:
             # inference time mini-optimization, only fwd the lm_head on the very last position
             logits = self.out_head(x[:,[-1],:]) # Note: using list [-1] to preserve the time dimension
             loss = None
+        
 
         # for some performance reasons
         if not return_logits:
