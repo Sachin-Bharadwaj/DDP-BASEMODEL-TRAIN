@@ -109,9 +109,10 @@ class GPTModel(nn.Module):
         x = self.final_norm(x)
 
         # check if it is in train mode or inference mode
+        # check if it is in train mode or inference mode
         if targets is not None:
             logits = self.out_head(x)
-            if targets != -1:
+            if targets.ndim > 0:
                 loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
             else:
                 loss = None
